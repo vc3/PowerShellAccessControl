@@ -125,7 +125,9 @@ function Set-TargetResource {
             $SD | Remove-AccessControlEntry @RemoveParams -ErrorAction Stop
 
             Write-Verbose "    Adding new ACEs"
-            $SD | Add-AccessControlEntry -AceObject $Aces -ErrorAction Stop
+            foreach ($CurrentAce in $Aces) {
+                $SD | Add-AccessControlEntry -AceObject $CurrentAce -ErrorAction Stop
+            }
 
             $Sections = $Sections -bor [System.Security.AccessControl.AccessControlSections]::$AclType
         }
@@ -365,5 +367,4 @@ function ConvertCsvToAce {
     }
 }
 Export-ModuleMember -Function *-TargetResource
-
 

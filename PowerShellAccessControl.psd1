@@ -9,7 +9,7 @@
 @{
 
 # Version number of this module.
-ModuleVersion = '3.0.131.20140718'
+ModuleVersion = '3.0.135.20150413'
 
 # ID used to uniquely identify this module
 GUID = '3b5f7697-05d6-4f5e-9b71-6841be80f7d8'
@@ -108,5 +108,4 @@ AliasesToExport = '*'
 # DefaultCommandPrefix = ''
 
 }
-
 

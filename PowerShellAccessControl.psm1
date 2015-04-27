@@ -251,16 +251,16 @@ can be used to provide AuditFlags and Inheritance/Propagation flags (WMI ACE obj
 
         #region Get Inheritance and Propagation flags       
         if (-not $PSBoundParameters.ContainsKey("AppliesTo")) {
-            if ($PSBoundParameters.ContainsKey("AceFlags") -and $AceFlags -band [System.Security.AccessControl.AceFlags]::InheritanceFlags) {
+            if ($PSBoundParameters.ContainsKey("AceFlags") -and $AceFlags.value__ -band [System.Security.AccessControl.AceFlags]::InheritanceFlags.value__) {
                 # AceFlags contains inheritance/propagation info, so get the AppliesTo from that
                 $InheritanceFlags = $PropagationFlags = 0
                 foreach ($CurrentFlag in "ContainerInherit", "ObjectInherit") {
-                    if ($AceFlags -band [System.Security.AccessControl.AceFlags]::$CurrentFlag) {
+                    if ($AceFlags.value__ -band ([int][System.Security.AccessControl.AceFlags]::$CurrentFlag)) {
                         $InheritanceFlags = $InheritanceFlags -bor [System.Security.AccessControl.InheritanceFlags]::$CurrentFlag
                     }
                 }
                 foreach ($CurrentFlag in "NoPropagateInherit","InheritOnly") {
-                    if ($AceFlags -band [System.Security.AccessControl.AceFlags]::$CurrentFlag) {
+                    if ($AceFlags.value__ -band ([int][System.Security.AccessControl.AceFlags]::$CurrentFlag)) {
                         $PropagationFlags = $PropagationFlags -bor [System.Security.AccessControl.PropagationFlags]::$CurrentFlag
                     }
                 }
@@ -315,8 +315,8 @@ can be used to provide AuditFlags and Inheritance/Propagation flags (WMI ACE obj
 
             # Or Success/Failure audits may have been specified through AceFlags (usually happens
             # when another ACE is fed to New-AccessControlEntry through pipeline.
-            if ($PSBoundParameters.AceFlags -band [System.Security.AccessControl.AceFlags]::SuccessfulAccess) { $AuditFlags += "Success" }
-            if ($PSBoundParameters.AceFlags -band [System.Security.AccessControl.AceFlags]::FailedAccess) { $AuditFlags += "Failure" }
+            if ([int] $PSBoundParameters.AceFlags -band [System.Security.AccessControl.AceFlags]::SuccessfulAccess) { $AuditFlags += "Success" }
+            if ([int] $PSBoundParameters.AceFlags -band [System.Security.AccessControl.AceFlags]::FailedAccess) { $AuditFlags += "Failure" }
 
             if ($AuditFlags) {
                 $AuditFlags = $AuditFlags -as [System.Security.AccessControl.AuditFlags]
@@ -984,7 +984,13 @@ function New-AdaptedSecurityDescriptor {
             $AdaptedSdProperites.DsObjectClass = $DsObjectClass
         }
 
-        $ReturnObject = New-Object PSObject -Property $AdaptedSdProperites | Add-Member -MemberType ScriptProperty -Name InheritanceString -PassThru -Value {
+        # This next section is to work around this issue: https://connect.microsoft.com/PowerShell/feedback/details/1045858/add-member-cmdlet-invokes-scriptproperty-members-when-adding-new-member
+        $ReturnObject = New-Object object
+        foreach ($PropertyEnum in $AdaptedSdProperites.GetEnumerator()) {
+            $ReturnObject | Add-Member -MemberType NoteProperty -Name $PropertyEnum.Key -Value $PropertyEnum.Value
+        }
+
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name InheritanceString -Value {
             $Output = @()
             if ($this.SecurityDescriptor.ControlFlags -band [System.Security.AccessControl.ControlFlags]::DiscretionaryAclPresent) {
                 $Output += "DACL Inheritance: $(if ($this.AreAccessRulesProtected) { "Dis" } else { "En" })abled"
@@ -994,23 +1000,32 @@ function New-AdaptedSecurityDescriptor {
                 $Output += "SACL Inheritance: $(if ($this.AreAuditRulesProtected) { "Dis" } else { "En" })abled"
             }
             $Output -join "`n"
-        } | Add-Member -MemberType ScriptProperty -Name AccessPresent -PassThru -Value {
+        } 
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AccessPresent -Value {
             $this.SecurityDescriptor.ControlFlags -match "DiscretionaryAcl"
-        } | Add-Member -MemberType ScriptProperty -Name Access -PassThru -Value {
+        } 
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name Access -Value {
             $this | Get-AccessControlEntry -AceType AccessAllowed, AccessDenied
-        } | Add-Member -MemberType ScriptProperty -Name Owner -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name Owner -Value {
             $this | GetPrincipalString -IdentityReference $this.SecurityDescriptor.Owner
-        } | Add-Member -MemberType ScriptProperty -Name Group -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name Group -Value {
             $this | GetPrincipalString -IdentityReference $this.SecurityDescriptor.Group
-        } | Add-Member -MemberType ScriptProperty -Name AccessToString -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AccessToString -Value {
             $this | Get-AccessControlEntry -AceType AccessAllowed, AccessDenied | Convert-AclToString -DefaultAppliesTo (GetDefaultAppliesTo -IsContainer:$this.SecurityDescriptor.IsContainer -AccessMaskEnumeration $this.GetAccessMaskEnumeration())
-        } | Add-Member -MemberType ScriptProperty -Name AuditPresent -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AuditPresent -Value {
             $this.SecurityDescriptor.ControlFlags -match "SystemAcl"
-        } | Add-Member -MemberType ScriptProperty -Name Audit -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name Audit -Value {
             $this | Get-AccessControlEntry -AceType SystemAudit
-        } | Add-Member -MemberType ScriptProperty -Name AuditToString -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AuditToString -Value {
             $this | Get-AccessControlEntry -AceType SystemAudit | Convert-AclToString -DefaultAppliesTo (GetDefaultAppliesTo -IsContainer:$this.SecurityDescriptor.IsContainer -AccessMaskEnumeration $this.GetAccessMaskEnumeration())
-        } | Add-Member -MemberType ScriptMethod -Name RemoveAccessRule -PassThru -Value { 
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name RemoveAccessRule -Value { 
             param(
                 $Rule
             )
@@ -1021,7 +1036,8 @@ function New-AdaptedSecurityDescriptor {
             }
 
             InvokeCommonAclMethod -Acl $this.SecurityDescriptor.DiscretionaryAcl -MethodName RemoveAccess -Rule $Rule -ErrorAction Stop
-        } | Add-Member -MemberType ScriptMethod -Name RemoveAccessRuleSpecific -PassThru -Value { 
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name RemoveAccessRuleSpecific -Value { 
             param(
                 $Rule
             )
@@ -1032,21 +1048,24 @@ function New-AdaptedSecurityDescriptor {
             }
 
             InvokeCommonAclMethod -Acl $this.SecurityDescriptor.DiscretionaryAcl -MethodName RemoveAccessSpecific -Rule $Rule
-        } | Add-Member -MemberType ScriptMethod -Name RemoveAuditRuleSpecific -PassThru -Value { 
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name RemoveAuditRuleSpecific -Value { 
             param(
                 $Rule
             )
 
             InvokeCommonAclMethod -Acl $this.SecurityDescriptor.SystemAcl -MethodName RemoveAuditSpecific -Rule $Rule
 
-        } | Add-Member -MemberType ScriptMethod -Name RemoveAuditRule -PassThru -Value { 
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name RemoveAuditRule -Value { 
             param(
                 $Rule
             )
 
             InvokeCommonAclMethod -Acl $this.SecurityDescriptor.SystemAcl -MethodName RemoveAudit -Rule $Rule
 
-        } | Add-Member -MemberType ScriptMethod -Name AddAccessRule -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name AddAccessRule -Value {
             param(
                 $Rule
             )
@@ -1071,7 +1090,8 @@ function New-AdaptedSecurityDescriptor {
                 }
                 throw $_
             }
-        } | Add-Member -MemberType ScriptMethod -Name AddAuditRule -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name AddAuditRule -Value {
             param(
                 $Rule
             )
@@ -1093,7 +1113,8 @@ function New-AdaptedSecurityDescriptor {
                 throw $_
             }
 
-        } | Add-Member -MemberType ScriptMethod -Name SetAccessRule -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name SetAccessRule -Value {
             param(
                 $Rule
             )
@@ -1118,7 +1139,8 @@ function New-AdaptedSecurityDescriptor {
                 }
                 throw $_
             }
-        } | Add-Member -MemberType ScriptMethod -Name SetAuditRule -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name SetAuditRule -Value {
             param(
                 $Rule
             )
@@ -1140,7 +1162,8 @@ function New-AdaptedSecurityDescriptor {
                 throw $_
             }
 
-        } | Add-Member -MemberType ScriptMethod -Name SetAccessRuleProtection -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name SetAccessRuleProtection -Value {
             param(
                 [bool] $IsProtected, 
                 [bool] $PreserveInheritance
@@ -1169,7 +1192,8 @@ function New-AdaptedSecurityDescriptor {
                 $DaclProtectionDirtyString += $PreserveInheritanceString
             }
             $this | Add-Member -MemberType NoteProperty -Name DaclProtectionDirty -Value ($DaclProtectionDirtyString -join " ") -Force
-        } | Add-Member -MemberType ScriptMethod -Name SetAuditRuleProtection -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name SetAuditRuleProtection -Value {
             param(
                 [bool] $IsProtected,
                 [bool] $PreserveInheritance
@@ -1198,7 +1222,8 @@ function New-AdaptedSecurityDescriptor {
                 $ProtectionDirtyString += $PreserveInheritanceString
             }
             $this | Add-Member -MemberType NoteProperty -Name SaclProtectionDirty -Value ($ProtectionDirtyString -join " ") -Force
-        } | Add-Member -MemberType ScriptMethod -Name PurgeAccessRules -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name PurgeAccessRules -Value {
             param($Identity)
 
             if ($this.SecurityDescriptor.DiscretionaryAcl -eq $null) {
@@ -1214,7 +1239,8 @@ function New-AdaptedSecurityDescriptor {
 
             $this.SecurityDescriptor.DiscretionaryAcl.Purge($Sid)
 
-        } | Add-Member -MemberType ScriptMethod -Name PurgeAuditRules -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name PurgeAuditRules -Value {
             param($Identity)
 
             if ($this.SecurityDescriptor.SystemAcl -eq $null) {
@@ -1230,21 +1256,26 @@ function New-AdaptedSecurityDescriptor {
 
             $this.SecurityDescriptor.SystemAcl.Purge($Sid)
 
-        } | Add-Member -MemberType ScriptProperty -Name AreAccessRulesProtected -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AreAccessRulesProtected -Value {
             if ($this.GetAccessControlSections() -band [System.Security.AccessControl.AccessControlSections]::Access) {
                 [bool] ($this.SecurityDescriptor.ControlFlags -band [System.Security.AccessControl.ControlFlags]::DiscretionaryAclProtected)
             }
             # $null returned if section isn't present. I originally had a warning being output, but that was confusing when doing the format-list view
-        } | Add-Member -MemberType ScriptProperty -Name AreAuditRulesProtected -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AreAuditRulesProtected -Value {
             if ($this.GetAccessControlSections() -band [System.Security.AccessControl.AccessControlSections]::Audit) {
                 [bool] ($this.SecurityDescriptor.ControlFlags -band [System.Security.AccessControl.ControlFlags]::SystemAclProtected)
             }
             # $null returned if section isn't present. I originally had a warning being output, but that was confusing when doing the format-list view
-        } | Add-Member -MemberType ScriptProperty -Name AreAccessRulesCanonical -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AreAccessRulesCanonical -Value {
             $this.SecurityDescriptor.DiscretionaryAcl.IsCanonical
-        } | Add-Member -MemberType ScriptProperty -Name AreAuditRulesCanonical -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name AreAuditRulesCanonical -Value {
             $this.SecurityDescriptor.SystemAcl.IsCanonical
-        } | Add-Member -MemberType ScriptMethod -Name SetOwner -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name SetOwner -Value {
             param(
                 $Owner
             )
@@ -1258,14 +1289,17 @@ function New-AdaptedSecurityDescriptor {
 
             $this.SecurityDescriptor.Owner = $Sid
 
-        } | Add-Member -MemberType ScriptProperty -Name Sddl -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name Sddl -Value {
             $this.SecurityDescriptor.GetSddlForm([System.Security.AccessControl.AccessControlSections]::All)
-        } | Add-Member -MemberType ScriptMethod -Name GetSecurityDescriptorBinaryForm -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name GetSecurityDescriptorBinaryForm -Value {
             $BinarySD = New-Object byte[] $this.SecurityDescriptor.BinaryLength
             $this.SecurityDescriptor.GetBinaryForm($BinarySD, 0)
 
             $BinarySD
-        } | Add-Member -MemberType ScriptMethod -Name GetAccessControlSections -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name GetAccessControlSections -Value {
             # This is used by some of the DSC resources to be able to tell which sections of an SD
             # are implemented when an SDDL string is being used
 
@@ -1289,16 +1323,20 @@ function New-AdaptedSecurityDescriptor {
 
             [System.Security.AccessControl.AccessControlSections] $SectionsContained
 
-        } | Add-Member -MemberType NoteProperty -Name OriginalOwner -PassThru -Value $SecurityDescriptor.Owner |
-            Add-Member -MemberType ScriptProperty -Name HasOwnerChanged -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType NoteProperty -Name OriginalOwner -Value $SecurityDescriptor.Owner
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name HasOwnerChanged -Value {
                 -not ($this.OriginalOwner -eq $this.SecurityDescriptor.Owner)
-        }| Add-Member -MemberType NoteProperty -Name OriginalGroup -PassThru -Value $SecurityDescriptor.Group |
-            Add-Member -MemberType ScriptProperty -Name HasGroupChanged -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType NoteProperty -Name OriginalGroup -Value $SecurityDescriptor.Group
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name HasGroupChanged -Value {
                 -not ($this.OriginalGroup -eq $this.SecurityDescriptor.Group)
-        } | Add-Member -MemberType ScriptProperty -Name MandatoryIntegrityLabel -PassThru -Value {
+        }
+        $ReturnObject | Add-Member -MemberType ScriptProperty -Name MandatoryIntegrityLabel -Value {
             Get-MandatoryIntegrityLabel -Path $this.SdPath -ObjectType $this.ObjectType | 
-                Add-Member -MemberType ScriptMethod -Name ToString -Force -PassThru -Value { "{0} ({1})" -f $this.Principal, $this.AccessMaskDisplay }
-        } | Add-Member -MemberType ScriptMethod -Name GetAceCsv -PassThru -Value {
+                Add-Member -MemberType ScriptMethod -Name ToString -Force -Value { "{0} ({1})" -f $this.Principal, $this.AccessMaskDisplay }
+        }
+        $ReturnObject | Add-Member -MemberType ScriptMethod -Name GetAceCsv -Value {
             param(
                 [char] $Delimiter = ","
             )
@@ -2304,11 +2342,11 @@ or -Force flags with the {1} command.
                     }
                 }
             }
-
-            $ActionTextSecInfo = 0
-            if ($DiscretionaryAcl) { $ActionTextSecInfo = $ActionTextSecInfo -bor [PowerShellAccessControl.PInvoke.SecurityInformation]::ProtectedDacl }
-            if ($SystemAcl) { $ActionTextSecInfo = $ActionTextSecInfo -bor [PowerShellAccessControl.PInvoke.SecurityInformation]::ProtectedSacl }
         }
+
+        $ActionTextSecInfo = 0
+        if ($DiscretionaryAcl) { $ActionTextSecInfo = $ActionTextSecInfo -bor [PowerShellAccessControl.PInvoke.SecurityInformation]::UnprotectedDacl }
+        if ($SystemAcl) { $ActionTextSecInfo = $ActionTextSecInfo -bor [PowerShellAccessControl.PInvoke.SecurityInformation]::UnprotectedSacl }
     }
 
     process {
@@ -4107,4 +4145,3 @@ function Get-ADObjectAceGuid {
         }
     }
 }
-

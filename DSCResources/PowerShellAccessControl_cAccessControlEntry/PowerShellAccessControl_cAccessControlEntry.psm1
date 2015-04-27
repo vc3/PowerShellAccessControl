@@ -308,6 +308,17 @@ function CleanParams {
         }
 
         $GetSdParams.Audit = $true
+
+        if (-not $SetMode) {
+            $AuditFlags = 0
+            foreach ($AuditType in "Success", "Failure") {
+                if ($Parameters.ContainsKey("Audit$AuditType")) {
+                    $Parameters.Remove("Audit$AuditType")
+                    $AuditFlags = $AuditFlags -bor [System.Security.AccessControl.AuditFlags]::$AuditType
+                }
+            }
+            $Parameters.AuditFlags = $AuditFlags
+        }
     }
 
     @{
@@ -317,4 +328,3 @@ function CleanParams {
 }
 
 Export-ModuleMember -Function *-TargetResource
-
