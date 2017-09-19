@@ -35,7 +35,7 @@ function Get-TargetResource {
 		$Path,
 
 		[parameter(Mandatory = $true)]
-		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace")]
+		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace","Printer")]
 		[System.String]
 		$ObjectType,
 
@@ -127,7 +127,7 @@ function Set-TargetResource {
 		$Path,
 
 		[parameter(Mandatory = $true)]
-		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace")]
+		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace","Printer")]
 		[System.String]
 		$ObjectType,
 
@@ -217,7 +217,7 @@ function Test-TargetResource {
 		$Path,
 
 		[parameter(Mandatory = $true)]
-		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace")]
+		[ValidateSet("File","Directory","RegistryKey","Service","WmiNamespace","Printer")]
 		[System.String]
 		$ObjectType,
 
@@ -310,6 +310,10 @@ function PrepareParams {
             RegistryKey {
                 $PacCommandOptionParams.ObjectType = [System.Security.AccessControl.ResourceType]::RegistryKey
                 $AppliesToString = "Object, ChildContainers"
+            }
+
+            Printer {
+                $PacCommandOptionParams.ObjectType = [System.Security.AccessControl.ResourceType]::Printer
             }
 
             Service {
