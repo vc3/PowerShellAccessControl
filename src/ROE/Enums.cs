@@ -56,7 +56,7 @@ public enum RightsDictionaryViewType {
             ManagePrinter  = 0x00040,            
             Print = ReadPermissions | UsePrinter,
             PrinterFullControl  = TakeOwnership | ChangePermissions | ReadPermissions | Delete | AdministerPrinter | UsePrinter,
-            //ManageDocuments   = 0xf0030,
+            ManageDocuments   = 0xf0030,
             AdministerServer  = 0x000001,
             EnumerateServer   = 0x000002,
             ServerFullControl = TakeOwnership | ChangePermissions | Delete | WriteServer,
