@@ -47,10 +47,12 @@ function Get-TargetResource {
 		[parameter(Mandatory = $true)]
 		[System.String]
 		$Principal,
-
+	
 		[System.Int32]
 		$AccessMask,
 
+		[parameter(Mandatory = $true)]
+		[ValidateSet("Object","ChildContainers","ChildObjects","DirectChildrenOnly")]
 		[System.String]
 		$AppliesTo,
 
@@ -147,6 +149,8 @@ function Set-TargetResource {
 		[System.Int32]
 		$AccessMask,
 
+		[parameter(Mandatory = $true)]
+		[ValidateSet("Object","ChildContainers","ChildObjects","DirectChildrenOnly")]
 		[System.String]
 		$AppliesTo,
 
@@ -237,6 +241,8 @@ function Test-TargetResource {
 		[System.Int32]
 		$AccessMask,
 
+		[parameter(Mandatory = $true)]
+		[ValidateSet("Object","ChildContainers","ChildObjects","DirectChildrenOnly")]
 		[System.String]
 		$AppliesTo,
 
@@ -352,6 +358,11 @@ function PrepareParams {
             }
         }
     }
+    
+    if ($Parameters.AppliesTo) {
+      $AppliesToString = $Parameters.AppliesTo
+    }
+ 
     $GetAceParameters.PacSDOption = $ModifyAceParameters.PacSDOption = New-PacSDOption @PacCommandOptionParams
 
     $GetAceParameters.ExcludeInherited = -not ($Parameters.TestInheritedAces)
